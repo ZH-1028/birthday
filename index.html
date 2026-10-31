@@ -151,9 +151,20 @@
   }
   .wish.on{opacity:1}
 
+  .count{
+    position:fixed;left:50%;top:calc(22% + 2.9em);transform:translateX(-50%);
+    z-index:3;pointer-events:none;
+    font-size:clamp(10px,2.4vmin,11.5px);
+    letter-spacing:.24em;text-indent:.24em;
+    color:rgba(255,170,200,.58);
+    opacity:0;transition:opacity 1.2s ease .2s;
+  }
+  .count.on{opacity:1}
+
   /* 定格预览：关掉过渡，避免截图时停在中间态 */
   body.still .card{transition:none !important}
   body.still .hint{transition:none !important;opacity:1}
+  body.still .wish,body.still .count{transition:none !important}
 
   /* ---------- 密码门 ---------- */
   .lock{
@@ -272,6 +283,7 @@
 
 <div class="hint" id="hint">点击任意处 · 放一束烟花</div>
 <div class="wish" id="wish">Make a wish</div>
+<div class="count" id="count"></div>
 
 <script>
 (() => {
@@ -282,8 +294,10 @@
   const CONFIG = {
     pass:  "20081107",                 // 开启密码
     name:  "致 · 梓伊",
-    msg:   "梓伊，生日快乐。\n愿你被这个世界温柔以待，\n也愿你有力量，去温柔地对待自己。",
+    msg:   "梓伊，十八岁生日快乐。\n从今往后，很多事你可以自己决定了。\n愿你有底气，也有好运气。",
     date:  "2008 · 11 · 07",
+    birthday: "2008-11-07",            // 用于倒计时与年龄
+    candles: 18,                       // 蜡烛根数
     lines: ["HAPPY", "BIRTHDAY"]     // 粒子拼出来的字
   };
 
@@ -296,7 +310,7 @@
   const date = qs.get("date") || CONFIG.date;
   document.getElementById("name").textContent = name;
   document.getElementById("msg").textContent  = msg;
-  document.getElementById("date").textContent = date;
+  document.getElementById("date").textContent = date + " · " + bdayInfo().age + " 岁";
   document.title = "生日快乐 · " + name.replace(/^致\s*·\s*/, "");
 
   /* ---------------- 画布 ---------------- */
@@ -434,14 +448,14 @@
     const cx = W / 2;
     const cy = H * 0.60;
     const topY = cy - ch;
-    const n = 5;
-    const span = cw * 0.60;
+    const n = CONFIG.candles;
+    const span = cw * 0.66;
     candles = [];
     for (let i = 0; i < n; i++) {
       candles.push({
         x: cx - span / 2 + (span / (n - 1)) * i,
         topY,
-        h: cw * 0.17,
+        h: cw * 0.15,
         lit: true,
         seed: Math.random()
       });
@@ -488,6 +502,7 @@
     t0 = performance.now();
     buildParticles();
     setWish(false);
+    setCount("");
     setHint("点击任意处 · 放一束烟花");
   }
 
@@ -495,7 +510,7 @@
     if (blowing) blow = Math.min(1, blow + dt / 260);
     else blow = Math.max(0, blow - dt / 420);
 
-    if (!still && blowing && blow > 0.5 && ts - lastOut > 360) {
+    if (!still && blowing && blow > 0.45 && ts - lastOut > 240) {
       lastOut = ts;
       blowOne();
     }
@@ -559,24 +574,24 @@
       const h = c.h;
       const bodyTop = topY - h;
       ctx.fillStyle = "#fbe6f0";
-      roundRect(c.x - 3.4, bodyTop, 6.8, h, 3); ctx.fill();
+      roundRect(c.x - 1.7, bodyTop, 3.4, h, 1.7); ctx.fill();
       ctx.strokeStyle = "rgba(232,150,185,.45)"; ctx.lineWidth = 1;
       for (let k = 1; k <= 3; k++) {
         const y = bodyTop + h * k / 4;
-        ctx.beginPath(); ctx.moveTo(c.x - 3.4, y); ctx.lineTo(c.x + 3.4, y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(c.x - 1.7, y); ctx.lineTo(c.x + 1.7, y); ctx.stroke();
       }
-      ctx.strokeStyle = "rgba(60,30,45,.9)"; ctx.lineWidth = 1.6;
-      ctx.beginPath(); ctx.moveTo(c.x, bodyTop); ctx.lineTo(c.x, bodyTop - 3); ctx.stroke();
+      ctx.strokeStyle = "rgba(60,30,45,.9)"; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(c.x, bodyTop); ctx.lineTo(c.x, bodyTop - 2.5); ctx.stroke();
 
       if (c.lit) {
         const fl = 0.9 + Math.sin(ts / 95 + c.seed * 9) * 0.11 + Math.sin(ts / 41 + c.seed * 4) * 0.06;
-        const bend = blow * 7.5;
+        const bend = blow * 6;
         const fx = c.x + bend;
-        const fy = bodyTop - 4;
+        const fy = bodyTop - 3.5;
 
         ctx.save();
         ctx.translate(fx, fy);
-        ctx.scale(1, fl);
+        ctx.scale(0.62, 0.62 * fl);
         ctx.globalCompositeOperation = "lighter";
         const fgr = ctx.createRadialGradient(0, -6, 0, 0, -8, 18);
         fgr.addColorStop(0, "rgba(255,252,240,.98)");
@@ -611,6 +626,34 @@
 
   function setWish(on) {
     document.getElementById("wish").classList.toggle("on", !!on);
+  }
+
+  // 生日倒计时 / 年龄
+  function bdayInfo() {
+    const p = (CONFIG.birthday || "2008-11-07").split("-").map(Number);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let next = new Date(now.getFullYear(), p[1] - 1, p[2]);
+    if (next < today) next = new Date(now.getFullYear() + 1, p[1] - 1, p[2]);
+    return {
+      days: Math.round((next - today) / 86400000),
+      age: next.getFullYear() - p[0],
+      month: p[1],
+      day: p[2]
+    };
+  }
+
+  function setCount(txt) {
+    const el = document.getElementById("count");
+    if (txt) { el.textContent = txt; el.classList.add("on"); }
+    else { el.classList.remove("on"); }
+  }
+
+  function countText() {
+    const i = bdayInfo();
+    return i.days === 0
+      ? "就是今天 · 生日快乐"
+      : "距离 " + i.month + " 月 " + i.day + " 日 · 还有 " + i.days + " 天";
   }
 
   /* ---------------- 绘制 ---------------- */
@@ -802,6 +845,7 @@
       mode = "candles";
       layoutCandles();
       setWish(true);
+      setCount(countText());
       setHint("按住屏幕 或 空格 · 吹熄蜡烛");
     } else if (still) {
       mode = "text";
@@ -811,6 +855,7 @@
       mode = "candles";
       layoutCandles();
       setWish(true);
+      setCount(countText());
       setHint("按住屏幕 或 空格 · 吹熄蜡烛");
     }
     requestAnimationFrame(loop);
